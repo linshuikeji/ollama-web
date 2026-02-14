@@ -1,0 +1,1915 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ollama 本地模型工具</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        :root {
+            --bg-primary: #0f0f14;
+            --bg-secondary: #18181c;
+            --bg-tertiary: #222228;
+            --bg-hover: #2a2a32;
+            --accent: #4f8cff;
+            --accent-hover: #6b9fff;
+            --border: #2e2e36;
+            --text-primary: #f5f5f5;
+            --text-secondary: #a0a0a8;
+            --text-muted: #6b6b75;
+            --user-bubble: #4f8cff;
+            --ai-bubble: #222228;
+            --radius: 12px;
+            --radius-lg: 16px;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            height: 100vh;
+            overflow: hidden;
+        }
+        
+        .app-container {
+            display: flex;
+            height: 100vh;
+        }
+        
+        /* 左侧边栏 */
+        .sidebar {
+            width: 280px;
+            background: var(--bg-secondary);
+            border-right: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+            flex-shrink: 0;
+        }
+        
+        .sidebar-header {
+            padding: 20px;
+            border-bottom: 1px solid var(--border);
+        }
+        
+        .logo {
+            font-size: 18px;
+            font-weight: 600;
+            color: var(--text-primary);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .logo-icon {
+            width: 32px;
+            height: 32px;
+            background: linear-gradient(135deg, var(--accent), #a78bfa);
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+        }
+        
+        .new-chat-btn {
+            margin-top: 16px;
+            width: 100%;
+            padding: 12px 16px;
+            background: var(--accent);
+            border: none;
+            border-radius: var(--radius);
+            color: white;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            transition: all 0.2s;
+        }
+        
+        .new-chat-btn:hover {
+            background: var(--accent-hover);
+            transform: translateY(-1px);
+        }
+        
+        .model-section {
+            padding: 16px 20px;
+            border-bottom: 1px solid var(--border);
+        }
+        
+        .model-section-title {
+            font-size: 12px;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 12px;
+        }
+        
+        .model-select {
+            width: 100%;
+            padding: 10px 14px;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            color: var(--text-primary);
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .model-select:hover {
+            border-color: var(--accent);
+        }
+        
+        .model-select:focus {
+            outline: none;
+            border-color: var(--accent);
+            box-shadow: 0 0 0 3px rgba(79, 140, 255, 0.2);
+        }
+        
+        /* 历史记录 */
+        .history-section {
+            flex: 1;
+            overflow-y: auto;
+            padding: 16px 12px;
+        }
+        
+        .history-title {
+            font-size: 12px;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            padding: 0 8px;
+            margin-bottom: 12px;
+        }
+        
+        .history-list {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+        
+        .history-item {
+            padding: 12px 14px;
+            background: transparent;
+            border: none;
+            border-radius: var(--radius);
+            color: var(--text-secondary);
+            font-size: 14px;
+            text-align: left;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            transition: all 0.15s;
+            position: relative;
+        }
+        
+        .history-item:hover {
+            background: var(--bg-hover);
+            color: var(--text-primary);
+        }
+        
+        .history-item.active {
+            background: var(--bg-tertiary);
+            color: var(--text-primary);
+        }
+        
+        .history-item-title {
+            flex: 1;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            padding-right: 24px;
+        }
+        
+        .history-delete {
+            opacity: 0;
+            position: absolute;
+            right: 8px;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 24px;
+            height: 24px;
+            background: transparent;
+            border: none;
+            border-radius: 6px;
+            color: var(--text-muted);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+            transition: all 0.15s;
+        }
+        
+        .history-item:hover .history-delete {
+            opacity: 1;
+        }
+        
+        .history-delete:hover {
+            background: rgba(255, 77, 77, 0.2);
+            color: #ff4d4d;
+        }
+        
+        .history-empty {
+            text-align: center;
+            padding: 40px 20px;
+            color: var(--text-muted);
+            font-size: 13px;
+        }
+        
+        /* 主聊天区域 */
+        .main {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            background: var(--bg-primary);
+            min-width: 0;
+        }
+        
+        .main-header {
+            padding: 16px 24px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            background: var(--bg-secondary);
+        }
+        
+        .main-title {
+            font-size: 16px;
+            font-weight: 500;
+        }
+        
+        .tab-switcher {
+            display: flex;
+            gap: 8px;
+        }
+        
+        .tab-btn {
+            padding: 8px 16px;
+            background: transparent;
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            color: var(--text-secondary);
+            font-size: 13px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .tab-btn:hover {
+            border-color: var(--accent);
+            color: var(--text-primary);
+        }
+        
+        .tab-btn.active {
+            background: var(--accent);
+            border-color: var(--accent);
+            color: white;
+        }
+        
+        /* 聊天消息区域 */
+        .chat-messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 24px;
+            display: flex;
+            flex-direction: column;
+            gap: 24px;
+        }
+        
+        .message {
+            display: flex;
+            gap: 16px;
+            max-width: 800px;
+            margin: 0 auto;
+            width: 100%;
+        }
+        
+        .message.user {
+            flex-direction: row-reverse;
+        }
+        
+        .message-icon {
+            width: 36px;
+            height: 36px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            flex-shrink: 0;
+        }
+        
+        .message.user .message-icon {
+            background: var(--user-bubble);
+        }
+        
+        .message.assistant .message-icon {
+            background: linear-gradient(135deg, #a78bfa, #4f8cff);
+        }
+        
+        .message-content {
+            flex: 1;
+            min-width: 0;
+        }
+        
+        .message-bubble {
+            padding: 16px 20px;
+            border-radius: var(--radius-lg);
+            line-height: 1.7;
+            font-size: 15px;
+            word-wrap: break-word;
+            white-space: pre-wrap;
+        }
+        
+        .message.user .message-bubble {
+            background: var(--user-bubble);
+            color: white;
+            border-bottom-right-radius: 4px;
+        }
+        
+        .message.assistant .message-bubble {
+            background: var(--ai-bubble);
+            color: var(--text-primary);
+            border-bottom-left-radius: 4px;
+        }
+        
+        .message-actions {
+            display: flex;
+            gap: 8px;
+            margin-top: 8px;
+            opacity: 0;
+            transition: opacity 0.2s;
+        }
+        
+        .message:hover .message-actions {
+            opacity: 1;
+        }
+        
+        .action-btn {
+            padding: 4px 10px;
+            background: var(--bg-tertiary);
+            border: none;
+            border-radius: 6px;
+            color: var(--text-muted);
+            font-size: 12px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            transition: all 0.15s;
+        }
+        
+        .action-btn:hover {
+            background: var(--bg-hover);
+            color: var(--text-primary);
+        }
+        
+        /* 输入区域 */
+        .input-area {
+            padding: 16px 24px 20px;
+            background: var(--bg-secondary);
+            border-top: 1px solid var(--border);
+        }
+        
+        /* 工具栏 */
+        .input-toolbar {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 12px;
+            max-width: 800px;
+            margin: 0 auto 12px;
+            flex-wrap: wrap;
+        }
+        
+        .toolbar-btn {
+            padding: 6px 12px;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            color: var(--text-secondary);
+            font-size: 12px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            transition: all 0.2s;
+        }
+        
+        .toolbar-btn:hover {
+            background: var(--bg-hover);
+            border-color: var(--accent);
+            color: var(--text-primary);
+        }
+        
+        .toolbar-btn.active {
+            background: var(--accent);
+            border-color: var(--accent);
+            color: white;
+        }
+        
+        .toolbar-divider {
+            width: 1px;
+            height: 24px;
+            background: var(--border);
+            margin: 0 4px;
+        }
+        
+        /* 快捷选项 */
+        .quick-options {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 12px;
+            max-width: 800px;
+            margin: 0 auto 12px;
+        }
+        
+        .quick-btn {
+            padding: 6px 14px;
+            background: transparent;
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            color: var(--text-secondary);
+            font-size: 12px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .quick-btn:hover {
+            background: var(--bg-hover);
+            border-color: var(--accent);
+            color: var(--text-primary);
+        }
+        
+        .quick-btn.active {
+            background: rgba(79, 140, 255, 0.15);
+            border-color: var(--accent);
+            color: var(--accent);
+        }
+        
+        .input-container {
+            max-width: 800px;
+            margin: 0 auto;
+            display: flex;
+            align-items: flex-end;
+            gap: 12px;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            padding: 12px 16px;
+            transition: all 0.2s;
+        }
+        
+        .input-container:focus-within {
+            border-color: var(--accent);
+            box-shadow: 0 0 0 3px rgba(79, 140, 255, 0.15);
+        }
+        
+        .input-container textarea {
+            flex: 1;
+            background: transparent;
+            border: none;
+            color: var(--text-primary);
+            font-size: 15px;
+            line-height: 1.5;
+            resize: none;
+            max-height: 150px;
+            min-height: 24px;
+            outline: none;
+        }
+        
+        .input-container textarea::placeholder {
+            color: var(--text-muted);
+        }
+        
+        .send-btn {
+            width: 36px;
+            height: 36px;
+            background: var(--accent);
+            border: none;
+            border-radius: 8px;
+            color: white;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            transition: all 0.2s;
+            flex-shrink: 0;
+        }
+        
+        .send-btn:hover {
+            background: var(--accent-hover);
+            transform: scale(1.05);
+        }
+        
+        .send-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+        
+        /* 欢迎页面 */
+        .welcome {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            padding: 40px;
+        }
+        
+        .welcome-icon {
+            width: 80px;
+            height: 80px;
+            background: linear-gradient(135deg, var(--accent), #a78bfa);
+            border-radius: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 40px;
+            margin-bottom: 24px;
+        }
+        
+        .welcome h2 {
+            font-size: 28px;
+            font-weight: 600;
+            margin-bottom: 12px;
+        }
+        
+        .welcome p {
+            color: var(--text-secondary);
+            font-size: 15px;
+            max-width: 400px;
+        }
+        
+        /* 加载动画 */
+        .loading {
+            display: inline-flex;
+            gap: 4px;
+        }
+        
+        .loading span {
+            width: 6px;
+            height: 6px;
+            background: var(--text-muted);
+            border-radius: 50%;
+            animation: bounce 1.4s infinite ease-in-out;
+        }
+        
+        .loading span:nth-child(1) { animation-delay: -0.32s; }
+        .loading span:nth-child(2) { animation-delay: -0.16s; }
+        
+        @keyframes bounce {
+            0%, 80%, 100% { transform: scale(0.8); opacity: 0.5; }
+            40% { transform: scale(1); opacity: 1; }
+        }
+        
+        /* 状态提示 */
+        .status {
+            position: fixed;
+            bottom: 100px;
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 10px 20px;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            color: var(--text-primary);
+            font-size: 14px;
+            z-index: 1000;
+            animation: slideUp 0.3s ease;
+        }
+        
+        .status.error {
+            border-color: #ff4d4d;
+            background: rgba(255, 77, 77, 0.1);
+        }
+        
+        .status.success {
+            border-color: #4ec9b0;
+            background: rgba(78, 201, 176, 0.1);
+        }
+        
+        @keyframes slideUp {
+            from { opacity: 0; transform: translateX(-50%) translateY(10px); }
+            to { opacity: 1; transform: translateX(-50%) translateY(0); }
+        }
+        
+        /* 功能面板 (OCR/PDF) */
+        .feature-panel {
+            display: none;
+            flex-direction: column;
+            height: 100%;
+        }
+        
+        .feature-panel.active {
+            display: flex;
+        }
+        
+        .feature-header {
+            padding: 20px 24px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+        
+        .feature-content {
+            flex: 1;
+            overflow-y: auto;
+            padding: 24px;
+        }
+        
+        .upload-area {
+            border: 2px dashed var(--border);
+            border-radius: var(--radius-lg);
+            padding: 60px 40px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.2s;
+            background: var(--bg-secondary);
+        }
+        
+        .upload-area:hover {
+            border-color: var(--accent);
+            background: rgba(79, 140, 255, 0.05);
+        }
+        
+        .upload-area input {
+            display: none;
+        }
+        
+        .upload-icon {
+            font-size: 48px;
+            margin-bottom: 16px;
+        }
+        
+        .upload-area p {
+            color: var(--text-secondary);
+            font-size: 15px;
+        }
+        
+        .preview-img {
+            max-width: 300px;
+            border-radius: var(--radius);
+            margin-top: 20px;
+            display: none;
+        }
+        
+        .feature-result {
+            margin-top: 24px;
+            display: none;
+        }
+        
+        .result-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+        
+        .result-header h3 {
+            font-size: 16px;
+            font-weight: 500;
+        }
+        
+        .result-actions {
+            display: flex;
+            gap: 8px;
+        }
+        
+        .result-btn {
+            padding: 8px 16px;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            color: var(--text-secondary);
+            font-size: 13px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            transition: all 0.2s;
+        }
+        
+        .result-btn:hover {
+            border-color: var(--accent);
+            color: var(--text-primary);
+        }
+        
+        .result-text {
+            background: var(--bg-secondary);
+            border-radius: var(--radius);
+            padding: 20px;
+            max-height: 400px;
+            overflow-y: auto;
+            font-family: 'Consolas', 'Monaco', monospace;
+            font-size: 14px;
+            line-height: 1.7;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+        
+        .feature-select {
+            margin-bottom: 20px;
+        }
+        
+        .feature-select label {
+            display: block;
+            font-size: 14px;
+            color: var(--text-secondary);
+            margin-bottom: 8px;
+        }
+        
+        .feature-select select,
+        .feature-select input {
+            width: 100%;
+            padding: 10px 14px;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            color: var(--text-primary);
+            font-size: 14px;
+        }
+        
+        .feature-btn {
+            width: 100%;
+            padding: 14px 24px;
+            background: var(--accent);
+            border: none;
+            border-radius: var(--radius);
+            color: white;
+            font-size: 15px;
+            font-weight: 500;
+            cursor: pointer;
+            margin-top: 16px;
+            transition: all 0.2s;
+        }
+        
+        .feature-btn:hover {
+            background: var(--accent-hover);
+        }
+        
+        .feature-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        
+        /* PDF 上传区域 */
+        .pdf-upload-section {
+            margin-bottom: 20px;
+        }
+        
+        .pdf-info {
+            margin-top: 16px;
+            padding: 16px;
+            background: var(--bg-tertiary);
+            border-radius: var(--radius);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        
+        .pdf-name {
+            font-size: 14px;
+            color: var(--text-primary);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .pdf-name::before {
+            content: "📄";
+        }
+        
+        .pdf-result-container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            height: calc(100vh - 280px);
+            min-height: 400px;
+        }
+        
+        .pdf-preview-section {
+            display: flex;
+            flex-direction: column;
+            background: var(--bg-secondary);
+            border-radius: var(--radius);
+            overflow: hidden;
+        }
+        
+        .pdf-preview-section h3 {
+            padding: 12px 16px;
+            font-size: 14px;
+            font-weight: 500;
+            border-bottom: 1px solid var(--border);
+            background: var(--bg-tertiary);
+        }
+        
+        .pdf-preview-wrapper {
+            flex: 1;
+            overflow: hidden;
+        }
+        
+        #pdf-preview-frame {
+            width: 100%;
+            height: 100%;
+            min-height: 400px;
+        }
+        
+        .pdf-text-section {
+            display: flex;
+            flex-direction: column;
+            background: var(--bg-secondary);
+            border-radius: var(--radius);
+            overflow: hidden;
+        }
+        
+        .pdf-text-section .result-header {
+            padding: 12px 16px;
+            border-bottom: 1px solid var(--border);
+            margin-bottom: 0;
+        }
+        
+        .pdf-text-section .result-text {
+            flex: 1;
+            margin: 0;
+            border-radius: 0;
+            max-height: none;
+        }
+        
+        /* OCR 区域 */
+        .ocr-upload-section {
+            margin-bottom: 20px;
+        }
+        
+        .ocr-result-container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            height: calc(100vh - 380px);
+            min-height: 400px;
+        }
+        
+        .ocr-preview-section {
+            display: flex;
+            flex-direction: column;
+            background: var(--bg-secondary);
+            border-radius: var(--radius);
+            overflow: hidden;
+        }
+        
+        .ocr-preview-section h3 {
+            padding: 12px 16px;
+            font-size: 14px;
+            font-weight: 500;
+            border-bottom: 1px solid var(--border);
+            background: var(--bg-tertiary);
+        }
+        
+        .ocr-img-wrapper {
+            flex: 1;
+            overflow: hidden;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 16px;
+            background: var(--bg-primary);
+        }
+        
+        .ocr-text-section {
+            display: flex;
+            flex-direction: column;
+            background: var(--bg-secondary);
+            border-radius: var(--radius);
+            overflow: hidden;
+        }
+        
+        .ocr-text-section .result-header {
+            padding: 12px 16px;
+            border-bottom: 1px solid var(--border);
+            margin-bottom: 0;
+        }
+        
+        .ocr-text-section .result-text {
+            flex: 1;
+            margin: 0;
+            border-radius: 0;
+            max-height: none;
+        }
+        
+        @media (max-width: 900px) {
+            .pdf-result-container,
+            .ocr-result-container {
+                grid-template-columns: 1fr;
+                height: auto;
+            }
+            
+            .pdf-preview-wrapper,
+            .ocr-img-wrapper {
+                height: 400px;
+            }
+        }
+        
+        /* 滚动条 */
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+        
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        
+        ::-webkit-scrollbar-thumb {
+            background: var(--border);
+            border-radius: 3px;
+        }
+        
+        ::-webkit-scrollbar-thumb:hover {
+            background: var(--text-muted);
+        }
+    </style>
+</head>
+<body>
+    <div class="app-container">
+        <!-- 左侧边栏 -->
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <div class="logo">
+                    <div class="logo-icon">🤖</div>
+                    <span>Ollama 工具</span>
+                </div>
+                <button class="new-chat-btn" onclick="newChat()">➕ 新建对话</button>
+            </div>
+            
+            <div class="model-section">
+                <div class="model-section-title">选择模型</div>
+                <select class="model-select" id="chat-model">
+                    {% for model in models %}
+                    <option value="{{ model }}">{{ model }}</option>
+                    {% else %}
+                    <option value="">没有可用模型</option>
+                    {% endfor %}
+                </select>
+            </div>
+            
+            <div class="history-section">
+                <div class="history-title">历史记录</div>
+                <div class="history-list" id="history-list"></div>
+            </div>
+        </aside>
+        
+        <!-- 主内容区 -->
+        <main class="main">
+            <!-- 聊天面板 -->
+            <div id="chat-panel" class="feature-panel active">
+                <div class="main-header">
+                    <div class="main-title" id="chat-title">新对话</div>
+                    <div class="tab-switcher">
+                        <button class="tab-btn active" onclick="switchTab('chat')">💬 聊天</button>
+                        <button class="tab-btn" onclick="switchTab('ocr')">🔍 OCR</button>
+                        <button class="tab-btn" onclick="switchTab('pdf')">📄 PDF</button>
+                    </div>
+                </div>
+                
+                <div class="chat-messages" id="chat-messages">
+                    <div class="welcome">
+                        <div class="welcome-icon">💬</div>
+                        <h2>你好，我是 Ollama 助手</h2>
+                        <p>选择一个模型，开始对话吧！支持聊天、OCR 文字识别、PDF 文本提取等功能。</p>
+                    </div>
+                </div>
+                
+                <div class="input-area">
+                    <!-- 工具栏 -->
+                    <div class="input-toolbar">
+                        <button class="toolbar-btn" onclick="newChat()" title="新建对话">📝 新话题</button>
+                        <button class="toolbar-btn" onclick="document.getElementById('file-upload').click()" title="上传文件">📎 上传</button>
+                        <input type="file" id="file-upload" style="display:none" accept="image/*,.pdf,.txt" onchange="handleFileUpload(event)">
+                        <button class="toolbar-btn" onclick="toggleWebSearch()" title="网络搜索">🌐 搜索</button>
+                        <button class="toolbar-btn" onclick="clearCurrentChat()" title="清空消息">🗑️ 清空</button>
+                        <button class="toolbar-btn" onclick="clearContext()" title="清空上下文">💨 清上下文</button>
+                    </div>
+                    
+                    <!-- 快捷选项 -->
+                    <div class="quick-options">
+                        <button class="quick-btn active" onclick="setQuickMode('default', this)" data-mode="default">⚡ 快捷</button>
+                        <button class="quick-btn" onclick="setQuickMode('think', this)" data-mode="think">🧠 思考</button>
+                        <button class="quick-btn" onclick="setQuickMode('expert', this)" data-mode="expert">🎓 专家</button>
+                    </div>
+                    
+                    <!-- 输入框 -->
+                    <div class="input-container">
+                        <textarea id="chat-input" placeholder="输入消息..." rows="1" onkeydown="handleChatKeypress(event)"></textarea>
+                        <button class="send-btn" onclick="sendMessage()" id="send-btn">➤</button>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- OCR 面板 -->
+            <div id="ocr-panel" class="feature-panel">
+                <div class="feature-header">
+                    <button class="tab-btn" onclick="switchTab('chat')">← 返回</button>
+                    <span class="main-title">图片 OCR 识别</span>
+                </div>
+                <div class="feature-content">
+                    <div class="ocr-upload-section">
+                        <div class="feature-select">
+                            <label>选择视觉模型</label>
+                            <select id="ocr-model">
+                                {% for model in vision_models %}
+                                <option value="{{ model }}">{{ model }}</option>
+                                {% else %}
+                                <option value="">没有可用视觉模型</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="feature-select">
+                            <label>识别提示词</label>
+                            <input type="text" id="ocr-prompt" value="请仔细识别这张图片中的所有文字内容，直接输出文字，不要其他解释。">
+                        </div>
+                        <div class="upload-area" onclick="document.getElementById('ocr-file').click()">
+                            <input type="file" id="ocr-file" accept="image/*" onchange="handleOcrFileSelect(event)">
+                            <div class="upload-icon">🖼️</div>
+                            <p>点击上传图片或拖拽到此处</p>
+                        </div>
+                        <button class="feature-btn" onclick="performOcr()">开始识别</button>
+                    </div>
+                    
+                    <div class="ocr-result-container" id="ocr-result-container" style="display: none;">
+                        <div class="ocr-preview-section">
+                            <h3>图片预览</h3>
+                            <div class="ocr-img-wrapper">
+                                <img id="ocr-preview-img" style="max-width: 100%; max-height: 100%; object-fit: contain;">
+                            </div>
+                        </div>
+                        <div class="ocr-text-section">
+                            <div class="result-header">
+                                <h3>识别结果</h3>
+                                <div class="result-actions">
+                                    <button class="result-btn" onclick="copyResult('ocr-text')">📋 复制</button>
+                                    <button class="result-btn" onclick="saveResult('ocr-text', 'ocr')">💾 保存</button>
+                                </div>
+                            </div>
+                            <div class="result-text" id="ocr-text"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- PDF 面板 -->
+            <div id="pdf-panel" class="feature-panel">
+                <div class="feature-header">
+                    <button class="tab-btn" onclick="switchTab('chat')">← 返回</button>
+                    <span class="main-title">PDF 文本提取</span>
+                </div>
+                <div class="feature-content">
+                    <div class="feature-select">
+                        <label>选择模型（可选，用于OCR识别图片）</label>
+                        <select id="pdf-model">
+                            <option value="">不使用模型（仅提取文本）</option>
+                            {% for model in vision_models %}
+                            <option value="{{ model }}">{{ model }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="pdf-upload-section">
+                        <div class="upload-area pdf-upload" onclick="document.getElementById('pdf-file').click()">
+                            <input type="file" id="pdf-file" accept=".pdf" onchange="handlePdfFileSelect(event)">
+                            <div class="upload-icon">📄</div>
+                            <p>点击上传 PDF 文件或拖拽到此处</p>
+                        </div>
+                        <div class="pdf-info" id="pdf-info" style="display: none;">
+                            <div class="pdf-name" id="pdf-name"></div>
+                            <button class="feature-btn" onclick="extractPdf()" id="pdf-btn">提取文本</button>
+                        </div>
+                    </div>
+                    
+                    <div class="pdf-result-container" id="pdf-result-container" style="display: none;">
+                        <div class="pdf-preview-section">
+                            <h3>PDF 预览</h3>
+                            <div class="pdf-preview-wrapper" id="pdf-preview-wrapper">
+                                <iframe id="pdf-preview-frame" frameborder="0"></iframe>
+                            </div>
+                        </div>
+                        <div class="pdf-text-section">
+                            <div class="result-header">
+                                <h3>提取的文本</h3>
+                                <div class="result-actions">
+                                    <button class="result-btn" onclick="copyResult('pdf-text')">📋 复制</button>
+                                    <button class="result-btn" onclick="saveResult('pdf-text', 'pdf')">💾 保存</button>
+                                </div>
+                            </div>
+                            <div class="result-text" id="pdf-text"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+    
+    <div id="status" class="status" style="display: none;"></div>
+    
+    <script>
+        let chatHistory = [];
+        let currentChatId = null;
+        let chatHistoryList = [];
+        let currentQuickMode = 'default';
+        let webSearchEnabled = false;
+        
+        // 快捷模式提示词
+        const quickModePrompts = {
+            default: '',  // 无额外提示
+            think: '请在回答时进行深入思考，逐步分析问题，展现你的推理过程。',
+            expert: '你是一个专家级别的AI助手。请提供最专业、最准确、最详细的回答。'
+        };
+        
+        // 页面加载时初始化
+        document.addEventListener('DOMContentLoaded', function() {
+            loadChatHistoryList();
+            loadSelectedModel();
+            loadQuickMode();
+        });
+        
+        // 保存选中的聊天模型
+        function saveChatModel() {
+            const model = document.getElementById('chat-model').value;
+            localStorage.setItem('ollama_chat_model', model);
+        }
+        
+        // 加载选中的聊天模型
+        function loadChatModel() {
+            const savedModel = localStorage.getItem('ollama_chat_model');
+            if (savedModel) {
+                const select = document.getElementById('chat-model');
+                const options = select.options;
+                for (let i = 0; i < options.length; i++) {
+                    if (options[i].value === savedModel) {
+                        select.selectedIndex = i;
+                        break;
+                    }
+                }
+            }
+        }
+        
+        // 保存选中的OCR模型
+        function saveOcrModel() {
+            const model = document.getElementById('ocr-model').value;
+            localStorage.setItem('ollama_ocr_model', model);
+        }
+        
+        // 加载选中的OCR模型
+        function loadOcrModel() {
+            const savedModel = localStorage.getItem('ollama_ocr_model');
+            if (savedModel) {
+                const select = document.getElementById('ocr-model');
+                const options = select.options;
+                for (let i = 0; i < options.length; i++) {
+                    if (options[i].value === savedModel) {
+                        select.selectedIndex = i;
+                        break;
+                    }
+                }
+            }
+        }
+        
+        // 保存选中的PDF模型
+        function savePdfModel() {
+            const model = document.getElementById('pdf-model').value;
+            localStorage.setItem('ollama_pdf_model', model);
+        }
+        
+        // 加载选中的PDF模型
+        function loadPdfModel() {
+            const savedModel = localStorage.getItem('ollama_pdf_model');
+            if (savedModel) {
+                const select = document.getElementById('pdf-model');
+                const options = select.options;
+                for (let i = 0; i < options.length; i++) {
+                    if (options[i].value === savedModel) {
+                        select.selectedIndex = i;
+                        break;
+                    }
+                }
+            }
+        }
+        
+        // 保存选中的模型
+        function saveSelectedModel() {
+            saveChatModel();
+        }
+        
+        // 加载选中的模型
+        function loadSelectedModel() {
+            loadChatModel();
+            loadOcrModel();
+            loadPdfModel();
+        }
+        
+        // 模型选择变化时保存
+        document.getElementById('chat-model').addEventListener('change', saveChatModel);
+        document.getElementById('ocr-model').addEventListener('change', saveOcrModel);
+        document.getElementById('pdf-model').addEventListener('change', savePdfModel);
+        
+        function getChatHistoryKey() {
+            return 'ollama_chat_history';
+        }
+        
+        function getChatHistoryListKey() {
+            return 'ollama_chat_history_list';
+        }
+        
+        function saveChatHistory() {
+            if (currentChatId) {
+                const allHistory = JSON.parse(localStorage.getItem(getChatHistoryKey()) || '{}');
+                allHistory[currentChatId] = chatHistory;
+                localStorage.setItem(getChatHistoryKey(), JSON.stringify(allHistory));
+            }
+        }
+        
+        function loadChatHistoryList() {
+            const list = JSON.parse(localStorage.getItem(getChatHistoryListKey()) || '[]');
+            chatHistoryList = list;
+            renderChatHistoryList();
+        }
+        
+        function renderChatHistoryList() {
+            const historyListEl = document.getElementById('history-list');
+            
+            if (chatHistoryList.length === 0) {
+                historyListEl.innerHTML = '<div class="history-empty">暂无历史记录</div>';
+                return;
+            }
+            
+            historyListEl.innerHTML = chatHistoryList.map(chat => `
+                <div class="history-item ${chat.id === currentChatId ? 'active' : ''}" onclick="loadChat('${chat.id}')">
+                    <div class="history-item-title">${chat.title}</div>
+                    <button class="history-delete" onclick="event.stopPropagation(); deleteChat('${chat.id}')">×</button>
+                </div>
+            `).join('');
+        }
+        
+        function newChat() {
+            if (currentChatId) {
+                saveChatHistory();
+            }
+            
+            currentChatId = 'chat_' + Date.now();
+            chatHistory = [];
+            const newChat = {
+                id: currentChatId,
+                title: '新对话',
+                time: new Date().toLocaleDateString()
+            };
+            chatHistoryList.unshift(newChat);
+            localStorage.setItem(getChatHistoryListKey(), JSON.stringify(chatHistoryList));
+            renderChatHistoryList();
+            clearChatDisplay();
+            updateChatTitle('新对话');
+        }
+        
+        function loadChat(chatId) {
+            if (currentChatId) {
+                saveChatHistory();
+            }
+            
+            currentChatId = chatId;
+            const allHistory = JSON.parse(localStorage.getItem(getChatHistoryKey()) || '{}');
+            chatHistory = allHistory[chatId] || [];
+            renderChatHistoryList();
+            clearChatDisplay();
+            
+            const chat = chatHistoryList.find(c => c.id === chatId);
+            if (chat) {
+                updateChatTitle(chat.title);
+            }
+            
+            chatHistory.forEach(msg => addMessage(msg.role, msg.content, false));
+        }
+        
+        function deleteChat(chatId) {
+            if (!confirm('确定删除这个对话吗？')) return;
+            
+            chatHistoryList = chatHistoryList.filter(c => c.id !== chatId);
+            localStorage.setItem(getChatHistoryListKey(), JSON.stringify(chatHistoryList));
+            
+            const allHistory = JSON.parse(localStorage.getItem(getChatHistoryKey()) || '{}');
+            delete allHistory[chatId];
+            localStorage.setItem(getChatHistoryKey(), JSON.stringify(allHistory));
+            
+            if (chatId === currentChatId) {
+                newChat();
+            } else {
+                renderChatHistoryList();
+            }
+            showStatus('对话已删除');
+        }
+        
+        function updateCurrentChatTitle() {
+            if (!currentChatId || chatHistory.length === 0) return;
+            
+            const userFirstMsg = chatHistory.find(m => m.role === 'user');
+            if (userFirstMsg) {
+                const title = userFirstMsg.content.substring(0, 25) + (userFirstMsg.content.length > 25 ? '...' : '');
+                const chat = chatHistoryList.find(c => c.id === currentChatId);
+                if (chat) {
+                    chat.title = title;
+                    localStorage.setItem(getChatHistoryListKey(), JSON.stringify(chatHistoryList));
+                    renderChatHistoryList();
+                    updateChatTitle(title);
+                }
+            }
+        }
+        
+        function updateChatTitle(title) {
+            document.getElementById('chat-title').textContent = title;
+        }
+        
+        function clearChatDisplay() {
+            const messagesDiv = document.getElementById('chat-messages');
+            messagesDiv.innerHTML = `
+                <div class="welcome">
+                    <div class="welcome-icon">💬</div>
+                    <h2>你好，我是 Ollama 助手</h2>
+                    <p>选择一个模型，开始对话吧！支持聊天、OCR 文字识别、PDF 文本提取等功能。</p>
+                </div>
+            `;
+        }
+        
+        function switchTab(tab) {
+            document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+            document.querySelectorAll('.feature-panel').forEach(panel => panel.classList.remove('active'));
+            
+            event.target.classList.add('active');
+            document.getElementById(tab + '-panel').classList.add('active');
+            
+            if (tab !== 'chat' && currentChatId) {
+                saveChatHistory();
+            }
+        }
+        
+        function showStatus(message, isError = false) {
+            const status = document.getElementById('status');
+            status.textContent = message;
+            status.className = 'status ' + (isError ? 'error' : 'success');
+            status.style.display = 'block';
+            
+            setTimeout(() => {
+                status.style.display = 'none';
+            }, 3000);
+        }
+        
+        function addMessage(role, content, scroll = true) {
+            const messagesDiv = document.getElementById('chat-messages');
+            
+            // 如果是第一条消息，移除欢迎页
+            if (messagesDiv.querySelector('.welcome')) {
+                messagesDiv.innerHTML = '';
+            }
+            
+            const div = document.createElement('div');
+            div.className = 'message ' + role;
+            const msgId = 'msg_' + Date.now() + Math.random();
+            div.id = msgId;
+            
+            const icon = role === 'user' ? '👤' : '🤖';
+            div.innerHTML = `
+                <div class="message-icon">${icon}</div>
+                <div class="message-content">
+                    <div class="message-bubble">${escapeHtml(content)}</div>
+                    <div class="message-actions">
+                        <button class="action-btn" onclick="copyMessage('${msgId}')">📋 复制</button>
+                        <button class="action-btn" onclick="saveMessage('${msgId}')">💾 保存</button>
+                    </div>
+                </div>
+            `;
+            
+            messagesDiv.appendChild(div);
+            
+            if (scroll) {
+                messagesDiv.scrollTop = messagesDiv.scrollHeight;
+            }
+        }
+        
+        function escapeHtml(text) {
+            return text
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;');
+        }
+        
+        function copyMessage(msgId) {
+            const msgDiv = document.getElementById(msgId);
+            const content = msgDiv.querySelector('.message-bubble').innerText;
+            navigator.clipboard.writeText(content).then(() => {
+                showStatus('复制成功');
+            }).catch(() => {
+                showStatus('复制失败', true);
+            });
+        }
+        
+        function saveMessage(msgId) {
+            const msgDiv = document.getElementById(msgId);
+            const content = msgDiv.querySelector('.message-bubble').innerText;
+            const role = msgDiv.classList.contains('user') ? '用户' : 'AI';
+            const timestamp = new Date().toLocaleString();
+            const fullText = `[${timestamp}] ${role}:\n${content}\n\n`;
+            
+            const blob = new Blob([fullText], { type: 'text/plain;charset=utf-8' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `chat_${Date.now()}.txt`;
+            a.click();
+            URL.revokeObjectURL(url);
+            showStatus('保存成功');
+        }
+        
+        async function sendMessage() {
+            const input = document.getElementById('chat-input');
+            const model = document.getElementById('chat-model').value;
+            let message = input.value.trim();
+            
+            if (!message || !model) {
+                showStatus('请选择模型并输入消息', true);
+                return;
+            }
+            
+            // 添加快捷模式前缀
+            const modePrompt = quickModePrompts[currentQuickMode];
+            if (modePrompt && currentQuickMode !== 'default') {
+                message = modePrompt + '\n\n' + message;
+            }
+            
+            // 添加网络搜索提示
+            if (webSearchEnabled) {
+                message = '请先进行网络搜索，然后基于搜索结果回答。\n\n' + message;
+            }
+            
+            if (!currentChatId) {
+                newChat();
+            }
+            
+            // 显示用户消息
+            addMessage('user', input.value.trim());
+            input.value = '';
+            input.style.height = 'auto';
+            
+            // 显示加载状态和AI响应容器
+            const messagesDiv = document.getElementById('chat-messages');
+            const assistantMsgId = 'assistant-msg-' + Date.now();
+            const assistantDiv = document.createElement('div');
+            assistantDiv.className = 'message assistant';
+            assistantDiv.id = assistantMsgId;
+            assistantDiv.innerHTML = `
+                <div class="message-icon">🤖</div>
+                <div class="message-content">
+                    <div class="message-bubble" id="bubble-${assistantMsgId}"><span class="loading"><span></span><span></span><span></span></span></div>
+                </div>
+            `;
+            messagesDiv.appendChild(assistantDiv);
+            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+            
+            chatHistory.push({ role: 'user', content: input.value.trim() });
+            
+            let fullResponse = '';
+            
+            try {
+                const response = await fetch('/chat/stream', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        model: model,
+                        message: message,
+                        history: chatHistory.slice(0, -1)
+                    })
+                });
+                
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+                
+                // 移除加载动画
+                const bubble = document.getElementById('bubble-' + assistantMsgId);
+                bubble.innerHTML = '';
+                fullResponse = '';
+                
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+                    
+                    const chunk = decoder.decode(value);
+                    const lines = chunk.split('\n');
+                    
+                    for (const line of lines) {
+                        if (line.startsWith('data: ')) {
+                            try {
+                                const data = JSON.parse(line.slice(6));
+                                if (data.content) {
+                                    fullResponse += data.content;
+                                    bubble.innerHTML = escapeHtml(fullResponse);
+                                    messagesDiv.scrollTop = messagesDiv.scrollHeight;
+                                }
+                            } catch (e) {}
+                        }
+                    }
+                }
+                
+                // 添加操作按钮
+                const contentDiv = assistantDiv.querySelector('.message-content');
+                contentDiv.innerHTML += `
+                    <div class="message-actions">
+                        <button class="action-btn" onclick="copyMessage('${assistantMsgId}')">📋 复制</button>
+                        <button class="action-btn" onclick="saveMessage('${assistantMsgId}')">💾 保存</button>
+                    </div>
+                `;
+                
+                chatHistory.push({ role: 'assistant', content: fullResponse });
+                saveChatHistory();
+                updateCurrentChatTitle();
+                
+            } catch (error) {
+                const bubble = document.getElementById('bubble-' + assistantMsgId);
+                bubble.innerHTML = '<span style="color: #ff4d4d;">请求失败: ' + error + '</span>';
+                showStatus('请求失败: ' + error, true);
+            }
+        }
+        
+        // 设置快捷模式
+        function setQuickMode(mode, btn) {
+            currentQuickMode = mode;
+            document.querySelectorAll('.quick-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            localStorage.setItem('ollama_quick_mode', mode);
+            showStatus('已切换到: ' + (mode === 'default' ? '快捷' : mode === 'think' ? '思考' : '专家') + ' 模式');
+        }
+        
+        // 加载快捷模式
+        function loadQuickMode() {
+            const saved = localStorage.getItem('ollama_quick_mode') || 'default';
+            currentQuickMode = saved;
+            document.querySelectorAll('.quick-btn').forEach(btn => {
+                if (btn.dataset.mode === saved) {
+                    btn.classList.add('active');
+                } else {
+                    btn.classList.remove('active');
+                }
+            });
+        }
+        
+        // 切换网络搜索
+        function toggleWebSearch() {
+            webSearchEnabled = !webSearchEnabled;
+            const btns = document.querySelectorAll('.toolbar-btn');
+            btns[2].classList.toggle('active', webSearchEnabled);
+            showStatus(webSearchEnabled ? '网络搜索已开启' : '网络搜索已关闭');
+        }
+        
+        // 清空当前聊天
+        function clearCurrentChat() {
+            if (currentChatId) {
+                saveChatHistory();
+            }
+            newChat();
+            showStatus('已清空当前对话');
+        }
+        
+        // 清空上下文（保留当前对话）
+        function clearContext() {
+            chatHistory = [];
+            if (currentChatId) {
+                const allHistory = JSON.parse(localStorage.getItem(getChatHistoryKey()) || '{}');
+                allHistory[currentChatId] = [];
+                localStorage.setItem(getChatHistoryKey(), JSON.stringify(allHistory));
+            }
+            clearChatDisplay();
+            showStatus('已清空上下文（对话历史）');
+        }
+        
+        // 处理文件上传 - 直接在聊天框中使用多模态模型
+        function handleFileUpload(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            
+            const input = document.getElementById('chat-input');
+            const fileType = file.type;
+            
+            if (fileType.startsWith('image/')) {
+                // 检查当前模型是否支持视觉
+                const currentModel = document.getElementById('chat-model').value;
+                const visionModels = [
+                    {% for model in vision_models %}
+                    "{{ model }}",
+                    {% endfor %}
+                ];
+                
+                const isVisionModel = visionModels.some(vm => 
+                    currentModel.toLowerCase().includes(vm.toLowerCase()) ||
+                    vm.toLowerCase().includes(currentModel.toLowerCase())
+                );
+                
+                if (isVisionModel) {
+                    // 多模态模型 - 直接在聊天中处理
+                    sendImageInChat(file);
+                } else {
+                    // 非多模态模型 - 自动切换到OCR并识别
+                    switchTab('ocr');
+                    document.getElementById('ocr-file').files = event.target.files;
+                    handleOcrFileSelect({ target: { files: event.target.files } });
+                    setTimeout(() => performOcr(), 500);
+                }
+            } else if (fileType === 'application/pdf') {
+                // PDF文件 - 切换到PDF并自动提取
+                switchTab('pdf');
+                document.getElementById('pdf-file').files = event.target.files;
+                handlePdfFileSelect({ target: { files: event.target.files } });
+                setTimeout(() => extractPdf(), 500);
+            } else {
+                // 文本文件 - 读取内容并添加到输入框
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    input.value += '\n' + e.target.result;
+                };
+                reader.readAsText(file);
+                showStatus('已加载文件: ' + file.name);
+            }
+            
+            // 清空input以便再次选择同一文件
+            event.target.value = '';
+        }
+        
+        // 在聊天中发送图片
+        async function sendImageInChat(file) {
+            const model = document.getElementById('chat-model').value;
+            
+            if (!model) {
+                showStatus('请先选择模型', true);
+                return;
+            }
+            
+            // 显示图片预览
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const messagesDiv = document.getElementById('chat-messages');
+                
+                // 移除欢迎页
+                if (messagesDiv.querySelector('.welcome')) {
+                    messagesDiv.innerHTML = '';
+                }
+                
+                const imgDiv = document.createElement('div');
+                imgDiv.className = 'message user';
+                imgDiv.innerHTML = `
+                    <div class="message-icon">👤</div>
+                    <div class="message-content">
+                        <div class="message-bubble" style="padding: 8px;">
+                            <img src="${e.target.result}" style="max-width: 300px; border-radius: 8px;">
+                        </div>
+                    </div>
+                `;
+                messagesDiv.appendChild(imgDiv);
+                messagesDiv.scrollTop = messagesDiv.scrollHeight;
+                
+                // 显示加载状态
+                const loadingDiv = document.createElement('div');
+                loadingDiv.className = 'message assistant';
+                loadingDiv.id = 'image-loading-msg';
+                loadingDiv.innerHTML = `
+                    <div class="message-icon">🤖</div>
+                    <div class="message-content">
+                        <div class="message-bubble"><span class="loading"><span></span><span></span><span></span></span> 正在识别图片...</div>
+                    </div>
+                `;
+                messagesDiv.appendChild(loadingDiv);
+                messagesDiv.scrollTop = messagesDiv.scrollHeight;
+            };
+            reader.readAsDataURL(file);
+            
+            // 发送到后端
+            const formData = new FormData();
+            formData.append('image', file);
+            formData.append('model', model);
+            formData.append('prompt', '请仔细描述这张图片的内容。');
+            
+            try {
+                const response = await fetch('/chat/image', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const data = await response.json();
+                
+                // 移除加载消息
+                const loading = document.getElementById('image-loading-msg');
+                if (loading) loading.remove();
+                
+                if (data.error) {
+                    showStatus(data.error, true);
+                } else {
+                    // 添加用户消息到历史
+                    if (!currentChatId) {
+                        newChat();
+                    }
+                    chatHistory.push({ role: 'user', content: '[图片]' });
+                    
+                    // 添加AI响应
+                    addMessage('assistant', data.response);
+                    chatHistory.push({ role: 'assistant', content: data.response });
+                    saveChatHistory();
+                    updateCurrentChatTitle();
+                }
+            } catch (error) {
+                const loading = document.getElementById('image-loading-msg');
+                if (loading) loading.remove();
+                showStatus('请求失败: ' + error, true);
+            }
+        }
+        
+        function handleChatKeypress(event) {
+            if (event.key === 'Enter' && !event.shiftKey) {
+                event.preventDefault();
+                sendMessage();
+            }
+            
+            // 自动调整输入框高度
+            const input = event.target;
+            input.style.height = 'auto';
+            input.style.height = Math.min(input.scrollHeight, 150) + 'px';
+        }
+        
+        // OCR 功能
+        function handleOcrFileSelect(event) {
+            const file = event.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    document.getElementById('ocr-preview-img').src = e.target.result;
+                };
+                reader.readAsDataURL(file);
+            }
+        }
+        
+        async function performOcr() {
+            const file = document.getElementById('ocr-file').files[0];
+            if (!file) {
+                showStatus('请先上传图片', true);
+                return;
+            }
+            
+            const model = document.getElementById('ocr-model').value;
+            const prompt = document.getElementById('ocr-prompt').value;
+            
+            if (!model) {
+                showStatus('请选择模型', true);
+                return;
+            }
+            
+            // 创建按钮（如果不存在）
+            let btn = document.querySelector('.ocr-upload-section .feature-btn');
+            if (!btn) {
+                // 动态创建识别按钮
+                const uploadSection = document.querySelector('.ocr-upload-section');
+                btn = document.createElement('button');
+                btn.className = 'feature-btn';
+                btn.textContent = '开始识别';
+                uploadSection.appendChild(btn);
+                btn.onclick = performOcr;
+            }
+            
+            btn.disabled = true;
+            btn.textContent = '识别中...';
+            
+            // 显示结果容器
+            document.getElementById('ocr-result-container').style.display = 'grid';
+            
+            const formData = new FormData();
+            formData.append('image', file);
+            formData.append('model', model);
+            formData.append('prompt', prompt);
+            
+            try {
+                const response = await fetch('/ocr', { method: 'POST', body: formData });
+                const data = await response.json();
+                
+                if (data.error) {
+                    showStatus(data.error, true);
+                } else {
+                    document.getElementById('ocr-text').textContent = data.result;
+                    showStatus('OCR 识别完成');
+                }
+            } catch (error) {
+                showStatus('请求失败: ' + error, true);
+            }
+            
+            if (btn) {
+                btn.disabled = false;
+                btn.textContent = '开始识别';
+            }
+        }
+        
+        // PDF 功能
+        function handlePdfFileSelect(event) {
+            const file = event.target.files[0];
+            if (file) {
+                // 显示文件名
+                document.getElementById('pdf-name').textContent = file.name;
+                document.getElementById('pdf-info').style.display = 'flex';
+                
+                // 使用浏览器内置PDF查看器预览
+                const fileURL = URL.createObjectURL(file);
+                document.getElementById('pdf-preview-frame').src = fileURL + '#toolbar=0&navpanes=0&scrollbar=0';
+                
+                // 隐藏之前的结果
+                document.getElementById('pdf-result-container').style.display = 'none';
+                
+                showStatus('已选择: ' + file.name);
+            }
+        }
+        
+        async function extractPdf() {
+            const file = document.getElementById('pdf-file').files[0];
+            const model = document.getElementById('pdf-model').value;
+            const btn = document.getElementById('pdf-btn');
+            
+            if (!file) {
+                showStatus('请选择 PDF 文件', true);
+                return;
+            }
+            
+            btn.disabled = true;
+            btn.textContent = model ? '提取并识别中...' : '提取中...';
+            
+            const formData = new FormData();
+            formData.append('pdf', file);
+            if (model) {
+                formData.append('model', model);
+            }
+            
+            try {
+                const response = await fetch('/pdf', { method: 'POST', body: formData });
+                const data = await response.json();
+                
+                if (data.error) {
+                    showStatus(data.error, true);
+                } else {
+                    document.getElementById('pdf-text').textContent = data.text;
+                    document.getElementById('pdf-result-container').style.display = 'grid';
+                    showStatus('PDF 文本提取完成');
+                }
+            } catch (error) {
+                showStatus('请求失败: ' + error, true);
+            }
+            
+            btn.disabled = false;
+            btn.textContent = '提取文本';
+        }
+        
+        // 复制和保存
+        function copyResult(elementId) {
+            const text = document.getElementById(elementId).textContent;
+            if (!text) {
+                showStatus('没有内容可复制', true);
+                return;
+            }
+            
+            navigator.clipboard.writeText(text).then(() => {
+                showStatus('复制成功');
+            }).catch(() => {
+                showStatus('复制失败', true);
+            });
+        }
+        
+        function saveResult(elementId, type) {
+            const text = document.getElementById(elementId).textContent;
+            if (!text) {
+                showStatus('没有内容可保存', true);
+                return;
+            }
+            
+            const timestamp = new Date().toLocaleString();
+            const filename = `${type}_${Date.now()}.txt`;
+            const content = `[${type.toUpperCase()} 识别结果 - ${timestamp}]\n\n${text}`;
+            
+            const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            a.click();
+            URL.revokeObjectURL(url);
+            showStatus('保存成功');
+        }
+    </script>
+</body>
+</html>
